@@ -1,16 +1,10 @@
+[TOC]
+
 # Kubernetes概述
 
+docker和k8s是云原生时代两颗璀璨的明珠，分别对应了云计算中的两大核心功能：虚拟化和调度。资源的虚拟化为调度提供了前提，而调度则增加了系统了灵活性和资源的利用率。
 
-
-docker和k8s是云原生时代两颗璀璨的明珠，分别对应了云计算中的两大核心功能：虚拟化和调度。资源的虚拟化使其可调度，
-
-
-
-虚拟化技术由来已久，
-
-kubernetes,简称k8s，至今已经已经成为容器编排的事实标准。
-
-
+kubernetes,简称k8s，至今已经已经成为容器编排的事实标准。本文则主要讲述k8s相关的一概念，并对其余的云上调度算法进行比较。
 
 ## k8s提供的功能
 
@@ -23,19 +17,38 @@ kubernetes,简称k8s，至今已经已经成为容器编排的事实标准。
 - 自我修复
 - 密钥与配置管理
 
-### k8s的组件
+## k8s的组件
 
 ![Kubernetes 组件](https://gitee.com/weixiao619/pic/raw/master/components-of-kubernetes-20210605222057314.svg)
 
-#### 控制面板组件
+### 控制面板组件
 
 - Kube-apiserver
+
+  对外暴露k8s的服务
+
 - etcd
+
+  etcd是高可用的k-v数据库，在k8s中作为集群运行所需的持久化数据存储组件
+
 - Kube-scheduler
+
 - Kube-controller-manager
+
+  从逻辑上讲，每个[控制器](https://kubernetes.io/zh/docs/concepts/architecture/controller/)都是一个单独的进程， 但是为了降低复杂性，它们都被编译到同一个可执行文件，并在一个进程中运行。
+
+  这些控制器包括:
+
+  - 节点控制器（Node Controller）: 负责在节点出现故障时进行通知和响应
+  - 任务控制器（Job controller）: 监测代表一次性任务的 Job 对象，然后创建 Pods 来运行这些任务直至完成
+  - 端点控制器（Endpoints Controller）: 填充端点(Endpoints)对象(即加入 Service 与 Pod)
+  - 服务帐户和令牌控制器（Service Account & Token Controllers）: 为新的命名空间创建默认帐户和 API 访问令牌
+
 - Cloud-controller-manager
 
-#### Node组件
+  云控制器管理器是指嵌入特定云的控制逻辑的 [控制平面](https://kubernetes.io/zh/docs/reference/glossary/?all=true#term-control-plane)组件。 云控制器管理器允许您链接聚合到云提供商的应用编程接口中， 并分离出相互作用的组件与您的集群交互的组件。
+
+### Node组件
 
 - kubelet
   - 运行在集群的每一个节点上，确保容器在pod上的运行
@@ -45,9 +58,7 @@ kubernetes,简称k8s，至今已经已经成为容器编排的事实标准。
   - Docker,containerd,CRI-O等任何实现k8s CRI (容器运行环境接口)
   - 最新k8s已不支持docker
 
-
-
-#### 插件
+### 插件
 
 - DNS
 - Web界面
@@ -56,7 +67,15 @@ kubernetes,简称k8s，至今已经已经成为容器编排的事实标准。
 
 
 
-### Pods
+## k8s架构
+
+
+
+![image-20210606090903746](https://gitee.com/weixiao619/pic/raw/master/image-20210606090903746.png)
+
+如图为k8s的架构，其中一个Node一般为一个实际的宿主机，
+
+## Pods
 
 
 
@@ -74,7 +93,7 @@ pod并不需要直接创建，而是通过deployment或statefulset等进行创�
 
 pod的更新并不是更新已有的pod，而是创建一个新的pod去替换已有的pod
 
-#### pod内共享资源和通信
+### pod内共享资源和通信
 
 ##### 存储
 
@@ -94,7 +113,7 @@ pod的更新并不是更新已有的pod，而是创建一个新的pod去替换�
 
 
 
-#### pod的限制性拓扑策略
+### pod的限制性拓扑策略
 
 pod的拓扑策略配置样例，主要依赖四个参数：
 
@@ -114,11 +133,101 @@ spec:
 
 
 
-#### pod如何管理多个containers
+### pod如何管理多个containers
+
+Pod 被设计成支持形成内聚服务单元的多个协作过程（形式为容器）。 Pod 中的容器被自动安排到集群中的同一物理机或虚拟机上，并可以一起进行调度。 容器之间可以共享资源和依赖、彼此通信、协调何时以及何种方式终止自身。
+
+例如，你可能有一个容器，为共享卷中的文件提供 Web 服务器支持，以及一个单独的 “sidecar”容器负责从远端更新这些文件，如下图所示：
 
 ![example pod diagram](https://gitee.com/weixiao619/pic/raw/master/pod.svg)
 
+你可以使用工作负载资源来创建和管理多个 Pod。 资源的控制器能够处理副本的管理、上线，并在 Pod 失效时提供自愈能力。 例如，如果一个节点失败，控制器注意到该节点上的 Pod 已经停止工作， 就可以创建替换性的 Pod。调度器会将替身 Pod 调度到一个健康的节点执行
 
+
+
+### 示例
+
+```yaml
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  labels:
+    app: nginx
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.14.2
+        ports:
+        - containerPort: 80
+
+```
+
+
+
+
+
+## 工作负载类型
+
+### deploymnet
+
+### statefulset
+
+### DeamonSet
+
+### Jobs
+
+
+
+## 服务
+
+ **Service 从逻辑上定义了运行在集群中的一组 Pod**，这些 Pod 提供了相同的功能。 当每个 Service 创建时，会被分配一个唯一的 IP 地址（也称为 clusterIP）。 这个 IP 地址与一个 Service 的生命周期绑定在一起，当 Service 存在的时候它也不会改变。 可以配置 Pod 使它与 Service 进行通信，Pod 知道与 Service 通信将被自动地负载均衡到该 Service 中的某些 Pod 上。
+
+
+
+### 暴露服务的方式
+
+- NodePort
+- LoadBalancer
+- Ingress
+
+### 拓扑感知提示
+
+#### EndpointSlice 控制器
+
+此特性开启后，EndpointSlice 控制器负责在 EndpointSlice 上设置提示信息。 控制器按比例给每个区域分配一定比例数量的端点。 这个比例来源于此区域中运行节点的 [可分配](https://kubernetes.io/zh/docs/tasks/administer-cluster/reserve-compute-resources/#node-allocatable) CPU 核心数。 例如，如果一个区域拥有 2 CPU 核心，而另一个区域只有 1 CPU 核心， 那控制器将给那个有 2 CPU 的区域分配两倍数量的端点。
+
+### 服务内部流量策略
+
+在相同node中访问pod
+
+
+
+### 虚拟IP与Service代理
+
+#### userspace 代理模式
+
+![userspace 代理模式下 Service 概览图](https://gitee.com/weixiao619/pic/raw/master/services-userspace-overview.svg)
+
+
+
+#### iptable代理模式
+
+![Services overview diagram for iptables proxy](https://gitee.com/weixiao619/pic/raw/master/services-iptables-overview.svg)
+
+#### ipvs代理模式
+
+![IPVS代理的 Services 概述图](https://gitee.com/weixiao619/pic/raw/master/services-ipvs-overview.svg)
 
 
 
@@ -450,53 +559,9 @@ type CNI interface {
 }
 ```
 
-### 架构
 
 
 
-
-
-
-
-## 服务
-
- **Service 从逻辑上定义了运行在集群中的一组 Pod**，这些 Pod 提供了相同的功能。 当每个 Service 创建时，会被分配一个唯一的 IP 地址（也称为 clusterIP）。 这个 IP 地址与一个 Service 的生命周期绑定在一起，当 Service 存在的时候它也不会改变。 可以配置 Pod 使它与 Service 进行通信，Pod 知道与 Service 通信将被自动地负载均衡到该 Service 中的某些 Pod 上。
-
-### 暴露服务的方式
-
-- NodePort
-- LoadBalancer
-- Ingress
-
-### 拓扑感知提示
-
-#### EndpointSlice 控制器
-
-此特性开启后，EndpointSlice 控制器负责在 EndpointSlice 上设置提示信息。 控制器按比例给每个区域分配一定比例数量的端点。 这个比例来源于此区域中运行节点的 [可分配](https://kubernetes.io/zh/docs/tasks/administer-cluster/reserve-compute-resources/#node-allocatable) CPU 核心数。 例如，如果一个区域拥有 2 CPU 核心，而另一个区域只有 1 CPU 核心， 那控制器将给那个有 2 CPU 的区域分配两倍数量的端点。
-
-### 服务内部流量策略
-
-在相同node中访问pod
-
-
-
-
-
-### 虚拟IP与Service代理
-
-#### userspace 代理模式
-
-![userspace 代理模式下 Service 概览图](https://d33wubrfki0l68.cloudfront.net/e351b830334b8622a700a8da6568cb081c464a9b/13020/images/docs/services-userspace-overview.svg)
-
-
-
-#### iptable代理模式
-
-![Services overview diagram for iptables proxy](https://d33wubrfki0l68.cloudfront.net/27b2978647a8d7bdc2a96b213f0c0d3242ef9ce0/e8c9b/images/docs/services-iptables-overview.svg)
-
-#### ipvs代理模式
-
-![IPVS代理的 Services 概述图](https://d33wubrfki0l68.cloudfront.net/2d3d2b521cf7f9ff83238218dac1c019c270b1ed/9ac5c/images/docs/services-ipvs-overview.svg)
 
 ## k8s的可扩展性
 
@@ -551,12 +616,6 @@ Kubernetes 主项目提供了几种部署应用的最基本方式，分别是 `D
 #### 硬多租户
 
 今天的 Kubernetes 还很难做到硬多租户支持，也就是同一个集群的多个租户不会相互影响，也感知不到彼此的存在。尽管目前k8s用命名空间来划分虚拟集群，但也很难实现。这里是k8s社区相关的[讨论小组地址](https://github.com/kubernetes-sigs/multi-tenancy)
-
-
-
-
-
-
 
 ## K8S的对比
 
