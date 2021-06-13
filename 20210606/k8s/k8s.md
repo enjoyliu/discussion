@@ -34,6 +34,8 @@ kubernetes,简称k8s，至今已经已经成为容器编排的事实标准。本
 
 - Kube-scheduler
 
+  调度组件，选择将pod调度到哪个git当中
+
 - Kube-controller-manager
 
   从逻辑上讲，每个[控制器](https://kubernetes.io/zh/docs/concepts/architecture/controller/)都是一个单独的进程， 但是为了降低复杂性，它们都被编译到同一个可执行文件，并在一个进程中运行。
@@ -66,21 +68,31 @@ kubernetes,简称k8s，至今已经已经成为容器编排的事实标准。本
 - 容器资源监控
 - 集群日志
 
-
-
-## k8s架构
+## k8s暴露服务的架构
 
 
 
 ![image-20210606090903746](https://gitee.com/weixiao619/pic/raw/master/image-20210606090903746.png)
 
-如图为k8s的架构，其中一个Node一般为一个实际的宿主机，
+如图为k8s的架构，其中一个Node一般为一个实际的宿主机，Node中实际运行运行pod，pod中包含有一个或多个container(Docker)，这些contianer之间共享着网络和存储资源。以一个实际的web服务为例，实际提供服务能力的是pod ,而Service 从逻辑上定义了运行在集群中的一组 Pod
 
-## Pods
+ ![image-20210607191247355](https://gitee.com/weixiao619/pic/raw/master/image-20210607191247355.png)
 
 
 
-pods是k8s管理的的最小计算单元
+![](https://gitee.com/weixiao619/pic/raw/master/640-20210607192255383.png)
+
+调度的流程
+
+
+
+
+
+## Pod
+
+
+
+pod是k8s管理的的最小计算单元
 
 一个pod中包含一个或多个container,共享存储和网络资源
 
@@ -90,17 +102,15 @@ Pod之间的上下文共享，依赖一系列linux的隔离技术实现，如 [n
 
 pod并不需要直接创建，而是通过deployment或statefulset等进行创建
 
-
-
 pod的更新并不是更新已有的pod，而是创建一个新的pod去替换已有的pod
 
 ### pod内共享资源和通信
 
-##### 存储
+#### 存储
 
 一个pod中共享一系列存储卷，pod中所有的containers都可以访问这些共享的卷，从而实现共享存储。pod内部的
 
-##### 网络
+#### 网络
 
 - 每个pod被指定一个唯一的ip地址,pod中的每个容器都共享ip地址和端口。
 
@@ -111,8 +121,6 @@ pod的更新并不是更新已有的pod，而是创建一个新的pod去替换�
 #### 静态pod
 
 静态pod是直接通过kubelet进行管理的特殊节点，不能通过APIServer暴露，
-
-
 
 ### pod的限制性拓扑策略
 
@@ -174,10 +182,6 @@ spec:
 
 ```
 
-
-
-
-
 ## 工作负载类型
 
 ### deploymnet
@@ -192,9 +196,7 @@ spec:
 
 ## 服务
 
- **Service 从逻辑上定义了运行在集群中的一组 Pod**，这些 Pod 提供了相同的功能。 当每个 Service 创建时，会被分配一个唯一的 IP 地址（也称为 clusterIP）。 这个 IP 地址与一个 Service 的生命周期绑定在一起，当 Service 存在的时候它也不会改变。 可以配置 Pod 使它与 Service 进行通信，Pod 知道与 Service 通信将被自动地负载均衡到该 Service 中的某些 Pod 上。
-
-
+ **Service 从逻辑上定义了运行在集群中的一组 Pod，通过标签进行绑定**，这些 Pod 提供了相同的功能。 当每个 Service 创建时，会被分配一个唯一的 IP 地址（也称为 clusterIP）。 这个 IP 地址与一个 Service 的生命周期绑定在一起，当 Service 存在的时候它也不会改变。 可以配置 Pod 使它与 Service 进行通信，Pod 知道与 Service 通信将被自动地负载均衡到该 Service 中的某些 Pod 上。
 
 ### 暴露服务的方式
 
@@ -211,8 +213,6 @@ spec:
 ### 服务内部流量策略
 
 在相同node中访问pod
-
-
 
 ### 虚拟IP与Service代理
 
@@ -320,80 +320,6 @@ RunScorePlugins()
 2. 通过sched.Algorithm.Schedule调度函数执行Predicates的调度算法与Priorities算法，挑选出一个合适的节点；
 3. 当没有找到合适的节点时，调度器会尝试调用prof.RunPostFilterPlugins抢占低优先级的Pod资源对象的节点；
 4. 当调度器为Pod资源对象选择了一个合适的节点时，通过sched.bind函数将合适的节点与Pod资源对象绑定在一起；
-
-
-
-## Volcano 调度器
-
-根据上一节的内容可以看出k8s原生的调度器，在调度的最后阶段（打分）是串行的调度每个pod，但是在AI训练或者大数据处理的场景下，多个实例需要进行相互协作，此时，实际的需求为需要保证一组实例同时运行成功，而k8s原生调度器无法满足此需求，因此kube-batch分组调度器应运而生，Volcano调度器则基于kube-batch进行了进一步的优化。
-
-![img](https://gitee.com/weixiao619/pic/raw/master/scheduler-20210605222117986.PNG)
-
-如图为Volcano调度器的工作流，一个job会打包多个pod形成一个PodGroup。
-
-### 调度工作流
-
-Volcano scheduler的工作流程如下：
-
-1. 客户端提交的Job被scheduler观察到并缓存起来。
-2. 周期性的开启会话，一个调度周期开始。
-3. 将没有被调度的Job发送到会话的待调度队列中。
-4. 遍历所有的待调度Job，按照定义的次序依次执行enqueue、allocate、preempt、reclaim、backfill等动作，为每个Job找到一个最合适的节点。将该Job 绑定到这个节点。action中执行的具体算法逻辑取决于注册的plugin中各函数的实现。
-5. 关闭本次会话。
-
-#### Action作用
-
-##### enqueue
-
-Enqueue action负责通过一系列的过滤算法筛选出符合要求的待调度任务并将它们送入待调度队列。经过这个action，任务的状态将由pending变为inqueue。
-
-##### allocate
-
-Allocate action负责通过一系列的预选和优选算法筛选出最适合的节点。
-
-##### preempt
-
-Preempt action负责根据优先级规则为同一队列中高优先级任务执行抢占调度。
-
-##### reclaim
-
-Reclaim action负责当一个新的任务进入待调度队列，但集群资源已不能满足该任务所在队列的要求时，根据队列权重回收队列应得资源。
-
-##### backfill
-
-backfill action负责将处于pending状态的任务尽可能的调度下去以保证节点资源的最大化利用。
-
-### 一些调度插件
-
-#### Gang Scheduling
-
-以组为单位进行调度，
-
-![image.png](https://gitee.com/weixiao619/pic/raw/master/1568282331579096.png)
-
-#### DRF (dominant resource fairss)
-
-优先调度请求资源较少的实例，yarn和mesos均有对应调度Sunday
-
-​	![image.png](https://gitee.com/weixiao619/pic/raw/master/1568282358178951.png)
-
-
-
-#### binpack
-
-该调度算法尽量先填满已有节点，将负载聚拢到部分节点，有利于弹性伸缩，减少资源碎片
-
-![image.png](https://gitee.com/weixiao619/pic/raw/master/1568282383798065.png)
-
-#### proportion(队列)
-
-与yarn的capacity Scheduler调度器类似，根据组织分配资源比例，在组织内部使用FIFO的队列模式进行资源调度
-
-![image.png](https://gitee.com/weixiao619/pic/raw/master/1568282412649140-20210605213707655.png)
-
-#### 最终优选
-
-Volcano支持各种调度算法的插件，不同插件的调度逻辑可能出现相互冲突，因此Volcano可以给不同的调度插件设置不同的权重，根据加权值来最终决定po d的调度。
 
 ## kubelet工作原理
 
@@ -572,23 +498,25 @@ type CNI interface {
 
 
 
-k8s通过定义接口的方式，解耦了许多底层组件，极大的增强了k8s的可扩展性。
+k8s通过定义接口的方式，解耦了许多底层组件，极大的增强了k8s的可扩展性。其中网络和容器的通过接口实现可拓展性的方式在上文讲述容器运行时的部分有更为详细的阐述。
 
 ## k8s的局限性
+
+虽然k8s是云原生时代事实上的容器编排标准，但并不代表其完美无缺，这里对k8s现存的一些问题和一些解决方案的探索做一个简要的阐述。
 
 ### 集群管理
 
 #### 水平伸缩性
 
-Kubernetes 社区对外宣传的是单个集群最多支持 5,000 节点，Pod 总数不超过 150,000，容器总数不超过 300,000 以及单节点 Pod 数量不超过 100 个[3](https://draveness.me/kuberentes-limitations/#fn:3)，与几万节点的 Apache Mesos 集群、50,000 节点的微软 YARN 集群[4](https://draveness.me/kuberentes-limitations/#fn:4)相比，Kubernetes 的集群规模整整差了一个数量级。虽然阿里云的工程师也通过优化 Kubernetes 的各个组件实现了 5 位数的集群规模，但是与其他的资源管理方式相比却有比较大的差距[5](https://draveness.me/kuberentes-limitations/#fn:5)。
+首先是几圈
+
+Kubernetes 社区对外宣传的是单个集群最多支持 5,000 节点，Pod 总数不超过 150,000，容器总数不超过 300,000 以及单节点 Pod 数量不超过 100 个，与几万节点的 Apache Mesos 集群、50,000 节点的微软 YARN 集群相比，Kubernetes 的集群规模整整差了一个数量级。虽然阿里云的工程师也通过优化 Kubernetes 的各个组件实现了 5 位数的集群规模，但是与其他的资源管理方式相比却有比较大的差距。
 
 ### 多集群管理
 
 k8s的多集群管理会带来 资源不平衡、跨集群访问困难等问题
 
 #### 现有的一些探索方案
-
-
 
 ##### kubefed
 
@@ -604,21 +532,87 @@ kubefed(Kubernetes Cluster Federation)是k8s社区给出的解决方案，提供
 
 Kubernetes 主项目提供了几种部署应用的最基本方式，分别是 `Deployment`、`StatefulSet` 和 `DaemonSet`，这些资源分别适用于无状态服务、有状态服务和节点上的守护进程，这些资源能够提供最基本的策略，但是它们无法处理更加复杂的应用
 
-很多常见的场景，例如只运行一次的 DaemonSet[11](https://draveness.me/kuberentes-limitations/#fn:11) 以及金丝雀和蓝绿部署等功能，现在的资源也存在很多问题，例如 StatefulSet 在初始化容器中卡住无法回滚和更新[12](https://github.com/kubernetes/kubernetes/issues/78007)。
-
-
+很多常见的场景，例如只运行一次的 DaemonSe以及金丝雀和蓝绿部署等功能，现在的资源也存在很多问题，例如 StatefulSet 在初始化容器中卡住无法回滚和更新。
 
 #### 批处理调度
 
-机器学习、批处理任务和流式任务等工作负载的运行从 Kubernetes 诞生第一天起到今天都不是它的强项，大多数的公司都会使用 Kubernetes 运行在线服务处理用户请求，用 Yarn 管理的集群运行批处理的负载。
-
-
+机器学习、批处理任务和流式任务等工作负载的运行从 Kubernetes 诞生第一天起到今天都不是它的强项，大多数的公司都会使用 Kubernetes 运行在线服务处理用户请求，用 Yarn 管理的集群运行批处理的负载。当然在批处理任务方面，k8s社区本身也做了部分改进，有kube-batch的插件主要用于优化批处理任务的调度，同时华为在kube-batch的基础上演进出Volcano调度器有效的提高了k8s集群中运行批处理作业的能力，获得了广泛的认可。在后续比较云原生调度器的内容中会进一步对Volcano调度器做更为详细的阐述。
 
 #### 硬多租户
 
-今天的 Kubernetes 还很难做到硬多租户支持，也就是同一个集群的多个租户不会相互影响，也感知不到彼此的存在。尽管目前k8s用命名空间来划分虚拟集群，但也很难实现。这里是k8s社区相关的[讨论小组地址](https://github.com/kubernetes-sigs/multi-tenancy)
+今天的 Kubernetes 还很难做到硬多租户支持，也就是同一个集群的多个租户不会相互影响，也感知不到彼此的存在。尽管目前k8s用命名空间来划分虚拟集群，但也很难实现很好的资源隔离。
 
-## K8S的对比
+## Volcano 调度器
+
+根据上一节的内容可以看出k8s原生的调度器，在调度的最后阶段（打分）是串行的调度每个pod，但是在AI训练或者大数据处理的场景下，多个实例需要进行相互协作，此时，实际的需求为需要保证一组实例同时运行成功，而k8s原生调度器无法满足此需求，因此kube-batch分组调度器应运而生，Volcano调度器则基于kube-batch进行了进一步的优化。
+
+![img](https://gitee.com/weixiao619/pic/raw/master/scheduler-20210605222117986.PNG)
+
+如图为Volcano调度器的工作流，一个job会打包多个pod形成一个PodGroup。
+
+### 调度工作流
+
+Volcano scheduler的工作流程如下：
+
+1. 客户端提交的Job被scheduler观察到并缓存起来。
+2. 周期性的开启会话，一个调度周期开始。
+3. 将没有被调度的Job发送到会话的待调度队列中。
+4. 遍历所有的待调度Job，按照定义的次序依次执行enqueue、allocate、preempt、reclaim、backfill等动作，为每个Job找到一个最合适的节点。将该Job 绑定到这个节点。action中执行的具体算法逻辑取决于注册的plugin中各函数的实现。
+5. 关闭本次会话。
+
+#### Action作用
+
+##### enqueue
+
+Enqueue action负责通过一系列的过滤算法筛选出符合要求的待调度任务并将它们送入待调度队列。经过这个action，任务的状态将由pending变为inqueue。
+
+##### allocate
+
+Allocate action负责通过一系列的预选和优选算法筛选出最适合的节点。
+
+##### preempt
+
+Preempt action负责根据优先级规则为同一队列中高优先级任务执行抢占调度。
+
+##### reclaim
+
+Reclaim action负责当一个新的任务进入待调度队列，但集群资源已不能满足该任务所在队列的要求时，根据队列权重回收队列应得资源。
+
+##### backfill
+
+backfill action负责将处于pending状态的任务尽可能的调度下去以保证节点资源的最大化利用。
+
+### 一些调度插件
+
+#### Gang Scheduling
+
+以组为单位进行调度，
+
+![image.png](https://gitee.com/weixiao619/pic/raw/master/1568282331579096.png)
+
+#### DRF (dominant resource fairss)
+
+优先调度请求资源较少的实例，yarn和mesos均有对应调度Sunday
+
+​	![image.png](https://gitee.com/weixiao619/pic/raw/master/1568282358178951.png)
+
+
+
+#### binpack
+
+该调度算法尽量先填满已有节点，将负载聚拢到部分节点，有利于弹性伸缩，减少资源碎片
+
+![image.png](https://gitee.com/weixiao619/pic/raw/master/1568282383798065.png)
+
+#### proportion(队列)
+
+与yarn的capacity Scheduler调度器类似，根据组织分配资源比例，在组织内部使用FIFO的队列模式进行资源调度
+
+![image.png](https://gitee.com/weixiao619/pic/raw/master/1568282412649140-20210605213707655.png)
+
+#### 最终优选
+
+Volcano支持各种调度算法的插件，不同插件的调度逻辑可能出现相互冲突，因此Volcano可以给不同的调度插件设置不同的权重，根据加权值来最终决定po d的调度。
 
 ## 调度算法的演进
 
@@ -697,6 +691,8 @@ yarn是基于资源申请的方式进行资源分配的。AM向RM请求资源，
 Omega只是将优先级这一限制放到了共享数据的验证代码中，即当同时由多个应用程序申请同一份资源时，优先级最高的那个应用程序将获得该资源，其他资源限制全部下放到各个子调度器。
 对整个集群中的所有资源分组，限制每类应用程序的资源使用量，限制每个用户的资源使用量等，这些全部由各个应用程序调度器自我管理和控制。
 引入多版本并发控制后，限制该机制性能的一个因素是资源访问冲突的次数，冲突次数越多，系统性能下降的越快，而google通过实际负载测试证明，这种方式的冲突次数是完全可以接受的。
+
+
 
 ### Borg
 
