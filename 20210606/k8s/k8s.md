@@ -250,6 +250,10 @@ RunScorePlugins()
 - LoadBalancer
 - Ingress
 
+### headless服务
+
+headless服务，即无头服务，是一种特殊的服务类型，默认情况下，k8s的DNS会按照自己的负载均衡策略将域名转换为随机的后端podIp,这在不依赖k8s来进行负载均衡的情况下，会有一些问题。因此，k8s支持将服务声明为Headless，此时，k8s的DNS会返回域名绑定的所有podIp,由用户自己进行负载均衡。
+
 ### 拓扑感知提示
 
 #### EndpointSlice 控制器
