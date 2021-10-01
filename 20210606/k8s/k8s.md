@@ -22,8 +22,6 @@ k8s作为云原生时代容器编排的事实标准，自然具有其丰富的�
 
 ## k8s的架构
 
-
-
 ![image-20210606090903746](https://gitee.com/weixiao619/pic/raw/master/image-20210606090903746.png)
 
 如图为k8s的架构，其中一个Node一般对应一个宿主机，Node中实际运行pod，pod中包含有一个或多个container(Docker)，这些contianer之间共享着网络和存储资源。以一个实际的web服务为例，实际提供服务能力的是pod ,而Service 从逻辑上定义了运行在集群中的一组 Pod对外提供相同的服务。
@@ -44,15 +42,71 @@ k8s的的副本控制逻辑，k8s中并不区分创建和回滚的操作，以de
 
 k8s的工作负载有不同的类型，各个类型都有其特点。
 
-#### deploymnet
+#### Deployment
 
-#### statefulset
+Deployment是最常见的一种工作负载类型，是原有ReplicasSet的升级版，适合管理无状态应用，即多实例之间没有区别
+
+#### StatefulSet
+
+StatefulSet不同于Deployment类型，主要用于有状态应用的，有状态应用各个pod之间会有所区别，同时也可以将各个pod与持久化存储相对应
 
 #### DeamonSet
 
+DeamonSet一般是Node为单位运行的pod管理器，常见的情况是可以用DeamonSet来管理收集日志的pod,确保可以采集到每一个Node的文件
+
 #### Jobs
 
+上述的三种工作负载类型都是用于管理服务的，默认情况下一直处于运行状态；Job类型则较为不同，主要管理任务类型的实例，任务完成后实例就会关闭；CronJob与Job类似，区别在于普通的Job是一次性的任务，CronJob会根据时间规划反复运行。AI中的训练任务就是典型的Job类型，不过原生的k8s管理器对Job类型支持的并不是很好。不过得益于k8s优异的可拓展性，社区有很多优化项目既包括对Job类型工作负载本身的优化，也包括对Job类型任务特殊的调度逻辑设计。
 
+## k8s的组件
+
+![Kubernetes 组件](https://gitee.com/weixiao619/pic/raw/master/components-of-kubernetes-20210605222057314.svg)
+
+### 控制面板组件
+
+- Kube-apiserver
+
+  对外暴露k8s的服务
+
+- etcd
+
+  etcd是高可用的k-v数据库，在k8s中作为集群运行所需的持久化数据存储组件
+
+- Kube-scheduler
+
+  调度组件，选择将pod调度到哪个git当中
+
+- Kube-controller-manager
+
+  从逻辑上讲，每个[控制器](https://kubernetes.io/zh/docs/concepts/architecture/controller/)都是一个单独的进程， 但是为了降低复杂性，它们都被编译到同一个可执行文件，并在一个进程中运行。
+
+  这些控制器包括:
+
+  - 节点控制器（Node Controller）: 负责在节点出现故障时进行通知和响应
+  - 任务控制器（Job controller）: 监测代表一次性任务的 Job 对象，然后创建 Pods 来运行这些任务直至完成
+  - 端点控制器（Endpoints Controller）: 填充端点(Endpoints)对象(即加入 Service 与 Pod)
+  - 服务帐户和令牌控制器（Service Account & Token Controllers）: 为新的命名空间创建默认帐户和 API 访问令牌
+
+- Cloud-controller-manager
+
+  云控制器管理器是指嵌入特定云的控制逻辑的 [控制平面](https://kubernetes.io/zh/docs/reference/glossary/?all=true#term-control-plane)组件。 云控制器管理器允许您链接聚合到云提供商的应用编程接口中， 并分离出相互作用的组件与您的集群交互的组件。
+
+### Node组件
+
+- kubelet
+  - 运行在集群的每一个节点上，确保容器在pod上的运行
+- kube-proxy
+  - 运行在每一个节点上的网络代理，负责节点和pod间通讯的网路规则
+- Container Runtime
+  - Docker,containerd,CRI-O等任何实现k8s CRI (容器运行环境接口)
+  - 最新k8s已不支持docker
+
+### 插件
+
+- DNS
+- Web界面
+- 容器资源监控
+- 集群日志
 
 
 
